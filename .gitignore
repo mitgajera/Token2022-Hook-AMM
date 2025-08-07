@@ -36,3 +36,5 @@ build/
 # Anchor generated files
 **/target/
 **/.anchor/
+
+Cargo.lock

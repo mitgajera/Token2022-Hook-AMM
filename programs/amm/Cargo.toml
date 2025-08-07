@@ -1,7 +1,0 @@
-# This directory contains the Hook Anchor project  
-# The actual program is in programs/hook/
-
-[package]
-name = "amm-js"
-version = "0.0.1"
-edition = "2021"

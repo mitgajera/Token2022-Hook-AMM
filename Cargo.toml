@@ -1,6 +1,6 @@
 ﻿[workspace]
 members = [
-    "programs/amm/programs/amm",
+    "programs/programs/amm",
     "hook/programs/hook"
 ]
 resolver = "2"

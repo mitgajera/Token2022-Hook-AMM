@@ -1,0 +1,27 @@
+[workspace]
+members = [
+    "programs/programs/amm",
+    "hook/programs/hook"
+]
+
+[provider]
+cluster = "devnet"
+wallet = "C:/Users/gajer/.config/solana/id.json"
+
+[programs.devnet]
+amm = "64wzpszxV5JiGduwzJJSPDAKYWWJER2Z9xmE7Yr7Xzx1"
+hook = "7DSrZY74PNxhnHyiEtiWoQfjxQtW8pVtihV2qU5HQqAN"
+
+[programs.localnet]
+amm = "64wzpszxV5JiGduwzJJSPDAKYWWJER2Z9xmE7Yr7Xzx1"
+hook = "7DSrZY74PNxhnHyiEtiWoQfjxQtW8pVtihV2qU5HQqAN"
+
+[registry]
+url = "https://api.apr.dev"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+[features]
+seeds = false
+skip-lint = false
