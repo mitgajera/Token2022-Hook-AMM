@@ -1,19 +1,19 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::program::invoke;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface, transfer_checked, TransferChecked};
-use solana_program::program::invoke;
 
-declare_id!("AMM111111111111111111111111111111111111111");
+declare_id!("64wzpszxV5JiGduwzJJSPDAKYWWJER2Z9xmE7Yr7Xzx1");
 
 #[program]
 pub mod amm {
     use super::*;
 
-    pub fn initialize_pool(ctx: Context<InitializePool>, _bump: u8) -> Result<()> {
+    pub fn initialize_pool(ctx: Context<InitializePool>) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         pool.token_mint = ctx.accounts.token_mint.key();
         pool.token_vault = ctx.accounts.token_vault.key();
         pool.sol_vault = ctx.accounts.sol_vault.key();
-        pool.bump = *ctx.bumps.get("pool").unwrap();
+        pool.bump = ctx.bumps.pool;
         Ok(())
     }
 
@@ -66,16 +66,22 @@ pub mod amm {
 }
 
 #[derive(Accounts)]
-#[instruction(bump: u8)]
 pub struct InitializePool<'info> {
-    #[account(init, seeds = [b"pool", token_mint.key().as_ref()], bump, payer = payer, space = 8 + 32 + 32 + 32 + 1)]
+    #[account(
+        init, 
+        seeds = [b"pool", token_mint.key().as_ref()], 
+        bump, 
+        payer = payer, 
+        space = 8 + 32 + 32 + 32 + 1
+    )]
     pub pool: Account<'info, Pool>,
     
     pub token_mint: InterfaceAccount<'info, Mint>,
     #[account(mut)]
     pub token_vault: InterfaceAccount<'info, TokenAccount>,
+    /// CHECK: This is the SOL vault account
     #[account(mut)]
-    pub sol_vault: SystemAccount<'info>,
+    pub sol_vault: AccountInfo<'info>,
 
     #[account(mut)]
     pub payer: Signer<'info>,
@@ -91,8 +97,9 @@ pub struct AddLiquidity<'info> {
 
     #[account(mut)]
     pub token_vault: InterfaceAccount<'info, TokenAccount>,
+    /// CHECK: This is the SOL vault account
     #[account(mut)]
-    pub sol_vault: SystemAccount<'info>,
+    pub sol_vault: AccountInfo<'info>,
 
     pub token_mint: InterfaceAccount<'info, Mint>,
     pub token_program: Interface<'info, TokenInterface>, 
@@ -111,11 +118,11 @@ pub struct SwapToken<'info> {
 
     #[account(mut)]
     pub token_vault: InterfaceAccount<'info, TokenAccount>,
+    /// CHECK: This is the SOL vault account
     #[account(mut)]
-    pub sol_vault: SystemAccount<'info>,
+    pub sol_vault: AccountInfo<'info>,
 
     pub token_mint: InterfaceAccount<'info, Mint>,
-
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
 

@@ -8,7 +8,7 @@ resolver = "2"
 [workspace.dependencies]
 anchor-lang = "0.29.0"
 anchor-spl = "0.29.0"
-spl-token-2022 = { version = "0.9.0", features = ["no-entrypoint"] }
+spl-token-2022 = "0.9.0"
 
 [profile.release]
 overflow-checks = true

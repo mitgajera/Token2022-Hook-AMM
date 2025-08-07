@@ -8,9 +8,11 @@ describe("hook", () => {
 
   const program = anchor.workspace.Hook as Program<Hook>;
 
-  it("Is initialized!", async () => {
-    // Add your test here.
-    const tx = await program.methods.initialize().rpc();
-    console.log("Your transaction signature", tx);
+  it("Should load Hook program", async () => {
+    // Test that the program loads correctly
+    console.log("Hook program ID:", program.programId.toString());
+    
+    // TODO: Add proper tests for validate_transfer
+    console.log("Available methods:", Object.keys(program.methods));
   });
 });

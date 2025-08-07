@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("Hook111111111111111111111111111111111111111");
+declare_id!("7DSrZY74PNxhnHyiEtiWoQfjxQtW8pVtihV2qU5HQqAN");
 
 #[program]
 pub mod hook {
