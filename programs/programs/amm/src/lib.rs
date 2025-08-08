@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program::invoke;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface, transfer_checked, TransferChecked};
 
-declare_id!("64wzpszxV5JiGduwzJJSPDAKYWWJER2Z9xmE7Yr7Xzx1");
+declare_id!("5oMNX1WenL9DKfb5Yyf28c7Tbns2nqmMnv1FoTMJwuju");
 
 #[program]
 pub mod amm {
