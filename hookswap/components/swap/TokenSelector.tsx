@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronDown, Search } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronDown, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useTokens } from '@/hooks/useTokens';
 import { Token } from '@/types/token';
-import Image from 'next/image';
+import { useWallet } from '@solana/wallet-adapter-react';
 
 interface TokenSelectorProps {
   selectedToken: Token | null;
@@ -17,7 +17,15 @@ interface TokenSelectorProps {
 export function TokenSelector({ selectedToken, onTokenSelect }: TokenSelectorProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const { tokens } = useTokens();
+  const { tokens, loading, refetch } = useTokens();
+  const { connected } = useWallet();
+
+  // Refresh tokens when dialog opens
+  useEffect(() => {
+    if (open && connected) {
+      refetch();
+    }
+  }, [open, connected, refetch]);
 
   const filteredTokens = tokens.filter(token =>
     token.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -61,36 +69,50 @@ export function TokenSelector({ selectedToken, onTokenSelect }: TokenSelectorPro
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
-              placeholder="Search tokens..."
+              placeholder="Filter wallet tokens..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="input-glass pl-10"
             />
           </div>
           
-          <div className="max-h-80 overflow-y-auto space-y-1">
-            {filteredTokens.map((token) => (
-              <button
-                key={token.address}
-                onClick={() => handleTokenSelect(token)}
-                className="w-full flex items-center space-x-3 p-3 rounded-lg hover:bg-white/5 transition-colors group"
-              >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-400 to-pink-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <span className="text-sm font-bold text-white">
-                    {token.symbol.charAt(0)}
-                  </span>
-                </div>
-                <div className="flex-1 text-left">
-                  <div className="font-medium text-white">{token.symbol}</div>
-                  <div className="text-sm text-gray-400">{token.name}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-medium text-white">{token.balance}</div>
-                  <div className="text-xs text-gray-400">${token.usdValue}</div>
-                </div>
-              </button>
-            ))}
-          </div>
+          {!connected ? (
+            <div className="text-center p-6">
+              <p className="text-gray-400">Connect your wallet to see your tokens</p>
+            </div>
+          ) : loading ? (
+            <div className="flex justify-center items-center p-8">
+              <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+            </div>
+          ) : tokens.length === 0 ? (
+            <div className="text-center p-6">
+              <p className="text-gray-400">No tokens found in your wallet</p>
+            </div>
+          ) : (
+            <div className="max-h-80 overflow-y-auto space-y-1">
+              {filteredTokens.map((token) => (
+                <button
+                  key={token.address}
+                  onClick={() => handleTokenSelect(token)}
+                  className="w-full flex items-center space-x-3 p-3 rounded-lg hover:bg-white/5 transition-colors group"
+                >
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-400 to-pink-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <span className="text-sm font-bold text-white">
+                      {token.symbol.charAt(0)}
+                    </span>
+                  </div>
+                  <div className="flex-1 text-left">
+                    <div className="font-medium text-white">{token.symbol}</div>
+                    <div className="text-sm text-gray-400">{token.name}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-white">{token.balance}</div>
+                    <div className="text-xs text-gray-400">${token.usdValue}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

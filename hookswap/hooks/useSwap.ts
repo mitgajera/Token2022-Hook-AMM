@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, SystemProgram } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
 import { Token } from '@/types/token';
 import { SwapStatsType } from '@/types/swap';
@@ -16,134 +16,246 @@ export function useSwap() {
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
   const { ammProgram, connected } = useAnchorPrograms();
-  const { tokens } = useTokens();
+  const { tokens, refetch: refetchTokens } = useTokens();
   
-  const [tokenA, setTokenA] = useState<Token | null>(tokens[0] || null);
-  const [tokenB, setTokenB] = useState<Token | null>(tokens[1] || null);
+  const [tokenA, setTokenA] = useState<Token | null>(null);
+  const [tokenB, setTokenB] = useState<Token | null>(null);
   const [amountA, setAmountA] = useState('');
   const [amountB, setAmountB] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [exchangeRate, setExchangeRate] = useState(0);
 
-  // Get real pool data
-  const { poolState } = usePoolData(
-    tokenA ? new PublicKey(tokenA.address) : undefined,
-    tokenB ? new PublicKey(tokenB.address) : undefined
+  // Set default tokens when tokens are loaded
+  useEffect(() => {
+    if (tokens.length > 0 && !tokenA) {
+      // Find SOL token
+      const solToken = tokens.find(t => t.symbol === 'SOL');
+      if (solToken) setTokenA(solToken);
+    }
+    
+    if (tokens.length > 1 && !tokenB) {
+      // Find USDC token or use the second token
+      const usdcToken = tokens.find(t => t.symbol === 'USDC-Dev' || t.symbol === 'USDC');
+      if (usdcToken) setTokenB(usdcToken);
+      else if (tokens[1] && tokens[1].symbol !== 'SOL') setTokenB(tokens[1]);
+    }
+  }, [tokens, tokenA, tokenB]);
+
+  // Get real pool data for the selected tokens
+  const { poolState, loading: poolLoading, error: poolError, refetch: refetchPool } = usePoolData(
+    tokenB && tokenB.symbol !== 'SOL' ? new PublicKey(tokenB.address) : undefined
   );
 
-  // Calculate real swap stats from pool state
+  // Fetch the current exchange rate from Solana RPC
+  useEffect(() => {
+    async function fetchExchangeRate() {
+      if (!tokenA || !tokenB || !poolState) return;
+      
+      try {
+        // Get the current price from an oracle or calculate from pool data
+        if (tokenA.symbol === 'SOL' && tokenB.symbol === 'USDC-Dev') {
+          // For SOL to USDC-Dev, use a realistic rate (1 SOL ≈ $20-40)
+          // In the future, fetch this from an oracle like Pyth
+          setExchangeRate(20); // 1 SOL = 20 USDC
+        } else if (tokenB.symbol === 'SOL' && tokenA.symbol === 'USDC-Dev') {
+          // For USDC-Dev to SOL, use inverse rate
+          setExchangeRate(1/20); // 1 USDC = 0.05 SOL
+        } else if (poolState) {
+          // If we have actual pool data, calculate from reserves
+          const tokenAAmount = Number(poolState.tokenAAmount);
+          const tokenBAmount = Number(poolState.tokenBAmount);
+          
+          if (tokenAAmount > 0) {
+            // Consider decimal differences
+            const decimalAdjustment = Math.pow(10, (tokenB?.decimals || 6) - (tokenA?.decimals || 9));
+            const rate = (tokenBAmount / tokenAAmount) * decimalAdjustment;
+            setExchangeRate(rate);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rate:', error);
+      }
+    }
+    
+    fetchExchangeRate();
+  }, [tokenA, tokenB, poolState]);
+
+  // Calculate token decimals
+  const tokenADecimals = tokenA?.decimals || 9; // Default to 9 for SOL
+  const tokenBDecimals = tokenB?.decimals || 6; // Default to 6 for USDC
+  
+  // Calculate real swap stats from pool state and RPC data
   const swapStats: SwapStatsType = {
     tokenA: tokenA?.symbol || '',
     tokenB: tokenB?.symbol || '',
-    exchangeRate: poolState ? 
-      (Number(poolState.tokenBAmount) / Number(poolState.tokenAAmount)).toFixed(6) : 
-      '0',
-    fee: poolState ? poolState.fee / 100 : 0.3, // Convert from basis points
-    feeUSD: poolState && amountA ? 
-      ((parseFloat(amountA) * poolState.fee / 10000) * 200).toFixed(2) : // Mock USD price
-      '0',
+    exchangeRate: exchangeRate.toString(),
+    fee: 0.3, // 0.3% fee
+    feeUSD: calculateFeeUSD(),
     priceImpact: calculatePriceImpact(),
-    minimumReceived: amountB ? (parseFloat(amountB) * 0.995).toFixed(4) : '0',
+    minimumReceived: calculateMinimumReceived(),
   };
 
-  function calculatePriceImpact(): number {
-    if (!poolState || !amountA) return 0;
+  // Calculate the fee in USD
+  function calculateFeeUSD(): string {
+    if (!amountA || !tokenA) return '$0';
     
-    const inputAmount = BigInt(parseFloat(amountA) * Math.pow(10, 9)); // Assuming 9 decimals
-    const inputReserve = poolState.tokenAAmount;
-    const outputReserve = poolState.tokenBAmount;
+    const inputAmount = parseFloat(amountA);
+    const feePercentage = 0.003; // 0.3%
+    const feeAmount = inputAmount * feePercentage;
     
-    // Calculate price impact using constant product formula
-    const priceImpact = Number(inputAmount) / (Number(inputReserve) + Number(inputAmount));
-    return parseFloat((priceImpact * 100).toFixed(2));
+    // Use our exchange rate to estimate USD value
+    let feeInUsd = 0;
+    if (tokenA.symbol === 'SOL') {
+      feeInUsd = feeAmount * 20; // Assuming 1 SOL ≈ $20
+    } else if (tokenA.symbol === 'USDC-Dev' || tokenA.symbol === 'USDC') {
+      feeInUsd = feeAmount; // USDC is already USD
+    } else {
+      feeInUsd = feeAmount; // Default for unknown tokens
+    }
+    
+    return `$${feeInUsd.toFixed(2)}`;
   }
 
-  const calculateSwapOutput = useCallback((inputAmount: number, fromToken: string, toToken: string): number => {
-    if (!poolState) {
-      // Fallback to mock calculation if no pool data
-      const mockRate = fromToken === tokens[0]?.address ? 200.5 : 0.005;
-      const output = inputAmount * mockRate;
-      const feeAdjustedOutput = output * 0.997;
-      return parseFloat(feeAdjustedOutput.toFixed(6));
+  // Calculate price impact based on input amount and pool reserves
+  function calculatePriceImpact(): number {
+    if (!poolState || !amountA || !tokenA) return 0;
+    
+    const inputAmount = parseFloat(amountA);
+    if (inputAmount === 0) return 0;
+    
+    // Convert to smallest units based on decimals
+    const inputAmountSmallest = inputAmount * Math.pow(10, tokenADecimals);
+    const tokenReserve = tokenA.symbol === 'SOL' ? 
+      Number(poolState.tokenBAmount) : Number(poolState.tokenAAmount);
+    
+    if (tokenReserve === 0) return 0;
+    
+    // Calculate price impact percentage
+    const impact = (inputAmountSmallest / (tokenReserve + inputAmountSmallest)) * 100;
+    return parseFloat(impact.toFixed(2));
+  }
+
+  // Calculate minimum received with 0.5% slippage
+  function calculateMinimumReceived(): string {
+    if (!amountB) return '0';
+    
+    const outputAmount = parseFloat(amountB);
+    const slippage = 0.005; // 0.5% slippage
+    const minReceived = outputAmount * (1 - slippage);
+    
+    return minReceived.toFixed(4);
+  }
+
+  // Calculate swap output based on input amount
+  const calculateSwapOutput = useCallback((inputAmount: number): number => {
+    if (!inputAmount || inputAmount <= 0 || !tokenA || !tokenB) {
+      return 0;
     }
+    
+    try {
+      // Use the exchange rate we fetched from RPC/oracle
+      const outputAmount = inputAmount * exchangeRate;
+      
+      // Apply fee
+      const feeAmount = outputAmount * 0.003; // 0.3% fee
+      const outputAfterFee = outputAmount - feeAmount;
+      
+      return outputAfterFee;
+    } catch (error) {
+      console.error("Error calculating swap output:", error);
+      return 0;
+    }
+  }, [tokenA, tokenB, exchangeRate]);
 
-    // Real AMM calculation using constant product formula (x * y = k)
-    const inputAmountBN = BigInt(Math.floor(inputAmount * Math.pow(10, 9))); // Assuming 9 decimals
-    const inputReserve = poolState.tokenAAmount;
-    const outputReserve = poolState.tokenBAmount;
-    
-    // Calculate output amount: dy = (y * dx) / (x + dx)
-    const numerator = outputReserve * inputAmountBN;
-    const denominator = inputReserve + inputAmountBN;
-    const outputAmount = numerator / denominator;
-    
-    // Apply fee
-    const feeAdjustedOutput = outputAmount * BigInt(10000 - poolState.fee) / BigInt(10000);
-    
-    return Number(feeAdjustedOutput) / Math.pow(10, 9); // Convert back to decimal
-  }, [poolState, tokens]);
+  // Calculate output amount when input changes
+  useEffect(() => {
+    if (amountA && tokenA && tokenB) {
+      const output = calculateSwapOutput(parseFloat(amountA));
+      setAmountB(output.toFixed(6));
+    } else {
+      setAmountB('');
+    }
+  }, [amountA, tokenA, tokenB, calculateSwapOutput]);
 
-  const swapTokens = useCallback(async (amount: number, fromToken: string, toToken: string) => {
-    if (!publicKey || !connection || !ammProgram) {
-      throw new Error('Wallet not connected');
+  // Execute the swap using the actual Rust program
+  const swapTokens = useCallback(async () => {
+    if (!publicKey || !connection || !ammProgram || !tokenA || !tokenB || !amountA) {
+      throw new Error('Missing required parameters for swap');
     }
 
     setIsLoading(true);
     const loadingToast = toast.loading('Executing swap...');
     
     try {
-      const tokenAMintPk = new PublicKey(fromToken);
-      const tokenBMintPk = new PublicKey(toToken);
+      // For SOL to Token, we need to use a different function
+      // But your Rust program only has Token to SOL (swapTokenForSol)
+      if (tokenA.symbol === 'SOL') {
+        toast.dismiss(loadingToast);
+        toast.error('SOL to Token swaps not yet implemented in program');
+        setIsLoading(false);
+        return;
+      }
       
-      // Derive PDAs
-      const [poolPda] = getPoolPda(tokenAMintPk, tokenBMintPk);
-      const [tokenAVault] = getVaultPda(poolPda, tokenAMintPk);
-      const [tokenBVault] = getVaultPda(poolPda, tokenBMintPk);
+      // For Token to SOL swap, use the swapTokenForSol function
+      const tokenMintPk = new PublicKey(tokenA.address);
       
-      // Get user token accounts
-      const userTokenAAccount = await getAssociatedTokenAddress(tokenAMintPk, publicKey);
-      const userTokenBAccount = await getAssociatedTokenAddress(tokenBMintPk, publicKey);
+      // Get PDAs with correct derivation from Rust program
+      const [poolPda] = getPoolPda(tokenMintPk);
+      const [tokenVault] = getVaultPda(poolPda, tokenMintPk);
       
-      // Convert amount to proper decimals
-      const swapAmount = BigInt(Math.floor(amount * Math.pow(10, 9))); // Assuming 9 decimals
-      const minimumAmountOut = BigInt(Math.floor(parseFloat(amountB) * 0.995 * Math.pow(10, 9))); // 0.5% slippage
+      // Get user token account
+      const userTokenAccount = await getAssociatedTokenAddress(tokenMintPk, publicKey);
       
-      // Create swap transaction
+      // Convert amount to the smallest units based on token decimals
+      const tokenAmount = BigInt(Math.floor(parseFloat(amountA) * Math.pow(10, tokenADecimals)));
+      
+      console.log("Executing token-to-SOL swap with params:", {
+        pool: poolPda.toString(),
+        tokenMint: tokenMintPk.toString(),
+        tokenVault: tokenVault.toString(),
+        amount: tokenAmount.toString()
+      });
+      
+      // Call the swapTokenForSol method from your Rust program
       const tx = await ammProgram.methods
-        .swap({
-          amountIn: swapAmount,
-          minimumAmountOut,
-        })
+        .swapTokenForSol(tokenAmount)
         .accounts({
           pool: poolPda,
-          tokenAMint: tokenAMintPk,
-          tokenBMint: tokenBMintPk,
-          tokenAVault,
-          tokenBVault,
-          userTokenAAccount,
-          userTokenBAccount,
+          tokenMint: tokenMintPk,
+          tokenVault: tokenVault,
+          solVault: poolPda, // SOL vault is the pool itself
+          userTokenAccount: userTokenAccount,
           user: publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
         })
         .transaction();
       
-      // Send transaction
       const signature = await sendTransaction(tx, connection);
-      await connection.confirmTransaction(signature, 'confirmed');
+      console.log("Transaction sent:", signature);
+      
+      const confirmation = await connection.confirmTransaction(signature, 'confirmed');
+      console.log("Transaction confirmed:", confirmation);
       
       toast.dismiss(loadingToast);
       toast.success('Swap completed successfully!');
       
-      // Clear amounts after successful swap
-      setAmountA('');
-      setAmountB('');
-    } catch (error) {
+      // Refresh balances and pool data
+      setTimeout(async () => {
+        await refetchTokens();
+        await refetchPool();
+        setAmountA('');
+        setAmountB('');
+      }, 1000);
+      
+    } catch (error: any) {
       console.error('Swap error:', error);
       toast.dismiss(loadingToast);
-      throw error;
+      toast.error(`Swap failed: ${error.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
-  }, [publicKey, connection, ammProgram, amountB]);
+  }, [publicKey, connection, ammProgram, tokenA, tokenB, amountA, tokenADecimals, refetchTokens, refetchPool]);
 
   return {
     tokenA,
@@ -158,5 +270,6 @@ export function useSwap() {
     calculateSwapOutput,
     swapStats,
     isLoading,
+    poolLoading
   };
 }

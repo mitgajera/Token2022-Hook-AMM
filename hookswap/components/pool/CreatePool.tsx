@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PublicKey, SystemProgram } from '@solana/web3.js';
+import { PublicKey, SystemProgram, Keypair } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,16 +31,8 @@ export function CreatePool() {
       return;
     }
 
-    if (!tokenAMint || !tokenBMint || !initialTokenAAmount || !initialTokenBAmount) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    try {
-      const tokenAMintPk = new PublicKey(tokenAMint);
-      const tokenBMintPk = new PublicKey(tokenBMint);
-    } catch {
-      toast.error('Invalid mint addresses');
+    if (!tokenAMint) {
+      toast.error('Please specify a token mint');
       return;
     }
 
@@ -48,66 +40,39 @@ export function CreatePool() {
     const loadingToast = toast.loading('Creating pool...');
 
     try {
-      const tokenAMintPk = new PublicKey(tokenAMint);
-      const tokenBMintPk = new PublicKey(tokenBMint);
+      // Use only one token mint as per Rust program
+      const tokenMintPk = new PublicKey(tokenAMint);
       
-      // Derive PDAs
-      const [poolPda] = getPoolPda(tokenAMintPk, tokenBMintPk);
-      const [tokenAVault] = getVaultPda(poolPda, tokenAMintPk);
-      const [tokenBVault] = getVaultPda(poolPda, tokenBMintPk);
-      const [lpMint] = getLpMintPda(poolPda);
-
-      // Get user token accounts
-      const userTokenAAccount = await getAssociatedTokenAddress(tokenAMintPk, publicKey);
-      const userTokenBAccount = await getAssociatedTokenAddress(tokenBMintPk, publicKey);
-      const userLpAccount = await getAssociatedTokenAddress(lpMint, publicKey);
-
-      // Convert amounts to proper decimals (assuming 9 decimals for now)
-      const tokenAAmount = BigInt(parseFloat(initialTokenAAmount) * Math.pow(10, 9));
-      const tokenBAmount = BigInt(parseFloat(initialTokenBAmount) * Math.pow(10, 9));
-      const feeNum = Math.floor(parseFloat(fee) * 100); // Convert to basis points
-
-      // Create pool transaction
+      // Generate PDAs with correct seeds
+      const [poolPda] = getPoolPda(tokenMintPk);
+      const [tokenVault] = getVaultPda(poolPda, tokenMintPk);
+      
+      // Create a new account for SOL vault
+      const solVaultKeypair = Keypair.generate();
+      
+      // Call initializePool instruction using the actual program structure
       const tx = await ammProgram.methods
-        .initializePool({
-          tokenAAmount,
-          tokenBAmount,
-          fee: feeNum,
-        })
+        .initializePool()
         .accounts({
           pool: poolPda,
-          tokenAMint: tokenAMintPk,
-          tokenBMint: tokenBMintPk,
-          tokenAVault,
-          tokenBVault,
-          lpMint,
-          userTokenAAccount,
-          userTokenBAccount,
-          userLpAccount,
-          user: publicKey,
+          tokenMint: tokenMintPk,
+          tokenVault: tokenVault,
+          solVault: solVaultKeypair.publicKey,
+          payer: publicKey,
           systemProgram: SystemProgram.programId,
-          tokenProgram: TOKEN_PROGRAM_ID,
         })
+        .signers([solVaultKeypair])
         .transaction();
-
-      // Send transaction
+    
       const signature = await sendTransaction(tx, connection);
       await connection.confirmTransaction(signature, 'confirmed');
-
+      
       toast.dismiss(loadingToast);
       toast.success('Pool created successfully!');
-      
-      // Reset form
-      setTokenAMint('');
-      setTokenBMint('');
-      setInitialTokenAAmount('');
-      setInitialTokenBAmount('');
-      setFee('0.3');
-
     } catch (error) {
       console.error('Create pool error:', error);
       toast.dismiss(loadingToast);
-      toast.error('Failed to create pool');
+      toast.error(`Failed to create pool: ${error.message}`);
     } finally {
       setIsCreating(false);
     }
@@ -205,7 +170,7 @@ export function CreatePool() {
             <Plus className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
             <div className="text-xs text-gray-400">
               Creating a pool will initialize the AMM with your specified token pair and initial liquidity. 
-              You'll receive LP tokens representing your share of the pool.
+              You&apos;ll receive LP tokens representing your share of the pool.
             </div>
           </div>
         </div>

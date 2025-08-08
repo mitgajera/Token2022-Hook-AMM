@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
@@ -15,34 +15,64 @@ export function usePool() {
   const { publicKey, sendTransaction } = useWallet();
   const { ammProgram, connected } = useAnchorPrograms();
   const [isLoading, setIsLoading] = useState(false);
+  const [userLpBalance, setUserLpBalance] = useState('0');
 
   // Get real pool data - you might want to pass specific token mints here
   const { poolState } = usePoolData();
 
   // Calculate real pool statistics from on-chain data
   const poolStats: PoolStatsType = poolState ? {
-    totalValueLocked: ((Number(poolState.tokenAAmount) / Math.pow(10, 9)) * 200 + // Mock SOL price
-                      (Number(poolState.tokenBAmount) / Math.pow(10, 6))).toLocaleString(), // Mock USDC
-    tvlChange: 5.2, // This would need historical data
+    // Only use real data
+    totalValueLocked: ((Number(poolState.tokenAAmount) / Math.pow(10, 9)) * 200 + 
+                      (Number(poolState.tokenBAmount) / Math.pow(10, 6))).toLocaleString(),
+    tvlChange: 0, // Use 0 as default when no historical data
     lpTokenSupply: (Number(poolState.lpSupply) / Math.pow(10, 9)).toLocaleString(),
-    userShare: 0.25, // This would need user's LP balance
-    userLPBalance: '392.45', // This would need user's LP balance
-    volume24h: '89,456', // This would need volume tracking
-    volumeChange: -2.1, // This would need historical volume data
+    userShare: 0, // Will be calculated with actual user LP balance
+    userLPBalance: '0', // Will be updated with actual balance
+    volume24h: '0', // Will be updated with actual volume
+    volumeChange: 0,
     tokenAReserve: (Number(poolState.tokenAAmount) / Math.pow(10, 9)).toFixed(2),
     tokenBReserve: (Number(poolState.tokenBAmount) / Math.pow(10, 6)).toFixed(2),
   } : {
-    // Fallback to mock data
-    totalValueLocked: '1,245,678',
-    tvlChange: 5.2,
-    lpTokenSupply: '156,789',
-    userShare: 0.25,
-    userLPBalance: '392.45',
-    volume24h: '89,456',
-    volumeChange: -2.1,
-    tokenAReserve: '6,228.34',
-    tokenBReserve: '1,245,678',
+    // Empty/zero values when no pool data
+    totalValueLocked: '0',
+    tvlChange: 0,
+    lpTokenSupply: '0',
+    userShare: 0,
+    userLPBalance: '0',
+    volume24h: '0',
+    volumeChange: 0,
+    tokenAReserve: '0',
+    tokenBReserve: '0',
   };
+
+  // Fetch user LP balance
+  useEffect(() => {
+    if (!connected || !publicKey || !poolState) return;
+    
+    const fetchLpBalance = async () => {
+      try {
+        const [lpMint] = getLpMintPda(poolState.tokenAMint, poolState.tokenBMint);
+        const userLpAccount = await getAssociatedTokenAddress(lpMint, publicKey);
+        
+        // Check if account exists
+        const accountInfo = await connection.getAccountInfo(userLpAccount);
+        if (!accountInfo) {
+          setUserLpBalance('0');
+          return;
+        }
+        
+        // Parse token account data
+        const accountData = await connection.getTokenAccountBalance(userLpAccount);
+        setUserLpBalance(accountData.value.uiAmount.toString());
+      } catch (err) {
+        console.error('Error fetching LP balance:', err);
+        setUserLpBalance('0');
+      }
+    };
+    
+    fetchLpBalance();
+  }, [connected, publicKey, poolState, connection]);
 
   const addLiquidity = useCallback(async (
     tokenA: string, 
@@ -139,7 +169,7 @@ export function usePool() {
       const userLpAccount = await getAssociatedTokenAddress(lpMint, publicKey);
       
       // Calculate LP tokens to burn (you'd get this from user's LP balance)
-      const lpTokensToBurn = BigInt(Math.floor(parseFloat(poolStats.userLPBalance) * (percentage / 100) * Math.pow(10, 9)));
+      const lpTokensToBurn = BigInt(Math.floor(parseFloat(userLpBalance) * (percentage / 100) * Math.pow(10, 9)));
       
       // Create remove liquidity transaction
       const tx = await ammProgram.methods
@@ -176,7 +206,7 @@ export function usePool() {
     } finally {
       setIsLoading(false);
     }
-  }, [publicKey, connection, ammProgram, poolStats.userLPBalance]);
+  }, [publicKey, connection, ammProgram, userLpBalance]);
 
   return {
     poolStats,

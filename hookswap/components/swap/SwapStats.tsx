@@ -1,11 +1,7 @@
 'use client';
 
-import { TrendingUp, Clock, Zap } from 'lucide-react';
-import { SwapStatsType } from '@/types/swap';
-
-interface SwapStatsProps {
-  stats: SwapStatsType;
-}
+import { TrendingUp, Zap } from 'lucide-react';
+import { SwapStatsProps } from '@/types/swap';
 
 export function SwapStats({ stats }: SwapStatsProps) {
   return (

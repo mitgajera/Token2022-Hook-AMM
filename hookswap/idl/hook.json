@@ -1,0 +1,32 @@
+{
+  "version": "0.1.0",
+  "name": "hook",
+  "instructions": [
+    {
+      "name": "validateTransfer",
+      "accounts": [
+        {
+          "name": "kyc",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "KycFailed",
+      "msg": "KYC validation failed!"
+    }
+  ],
+  "metadata": {
+    "address": "FYUyJbrXRQJpGnjfZTFCdEUvFnknkTGbrdHhRUQkezib"
+  }
+}
