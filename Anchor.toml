@@ -9,12 +9,12 @@ cluster = "devnet"
 wallet = "C:/Users/gajer/.config/solana/id.json"
 
 [programs.devnet]
-amm = "5oMNX1WenL9DKfb5Yyf28c7Tbns2nqmMnv1FoTMJwuju"
-hook = "FYUyJbrXRQJpGnjfZTFCdEUvFnknkTGbrdHhRUQkezib"
+amm = "7448D3Cy2jdvFPJrUNhVY4uaAvf83EffSNa6Jbu4BqHG"
+hook = "DTmjxgRSQNJLwBa4wxkwffXqW4TKPfzq9r9MMToXx9bX"
 
 [programs.localnet]
-amm = "5oMNX1WenL9DKfb5Yyf28c7Tbns2nqmMnv1FoTMJwuju"
-hook = "FYUyJbrXRQJpGnjfZTFCdEUvFnknkTGbrdHhRUQkezib"
+amm = "7448D3Cy2jdvFPJrUNhVY4uaAvf83EffSNa6Jbu4BqHG"
+hook = "DTmjxgRSQNJLwBa4wxkwffXqW4TKPfzq9r9MMToXx9bX"
 
 [registry]
 url = "https://api.apr.dev"
@@ -25,3 +25,9 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
 [features]
 seeds = false
 skip-lint = false
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+debug = false
