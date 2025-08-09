@@ -26,12 +26,27 @@
           "isSigner": false
         },
         {
+          "name": "lpMint",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
           "name": "payer",
           "isMut": true,
           "isSigner": true
         },
         {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
           "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
           "isMut": false,
           "isSigner": false
         }
@@ -42,13 +57,13 @@
       "name": "addLiquidity",
       "accounts": [
         {
-          "name": "user",
+          "name": "pool",
           "isMut": true,
-          "isSigner": true
+          "isSigner": false
         },
         {
-          "name": "userTokenAccount",
-          "isMut": true,
+          "name": "tokenMint",
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -62,9 +77,24 @@
           "isSigner": false
         },
         {
-          "name": "tokenMint",
-          "isMut": false,
+          "name": "lpMint",
+          "isMut": true,
           "isSigner": false
+        },
+        {
+          "name": "userTokenAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userLpTokenAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
         },
         {
           "name": "tokenProgram",
@@ -75,11 +105,6 @@
           "name": "systemProgram",
           "isMut": false,
           "isSigner": false
-        },
-        {
-          "name": "pool",
-          "isMut": true,
-          "isSigner": false
         }
       ],
       "args": [
@@ -88,7 +113,76 @@
           "type": "u64"
         },
         {
-          "name": "lamports",
+          "name": "minLpTokens",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "removeLiquidity",
+      "accounts": [
+        {
+          "name": "pool",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenVault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "solVault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "lpMint",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userTokenAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userLpTokenAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "lpAmount",
+          "type": "u64"
+        },
+        {
+          "name": "minTokenAmount",
+          "type": "u64"
+        },
+        {
+          "name": "minSolAmount",
           "type": "u64"
         }
       ]
@@ -97,13 +191,13 @@
       "name": "swapTokenForSol",
       "accounts": [
         {
-          "name": "user",
-          "isMut": true,
-          "isSigner": true
+          "name": "pool",
+          "isMut": false,
+          "isSigner": false
         },
         {
-          "name": "userTokenAccount",
-          "isMut": true,
+          "name": "tokenMint",
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -117,9 +211,14 @@
           "isSigner": false
         },
         {
-          "name": "tokenMint",
-          "isMut": false,
+          "name": "userTokenAccount",
+          "isMut": true,
           "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
         },
         {
           "name": "tokenProgram",
@@ -130,16 +229,70 @@
           "name": "systemProgram",
           "isMut": false,
           "isSigner": false
-        },
-        {
-          "name": "pool",
-          "isMut": true,
-          "isSigner": false
         }
       ],
       "args": [
         {
           "name": "tokenAmount",
+          "type": "u64"
+        },
+        {
+          "name": "minSolOut",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "swapSolForToken",
+      "accounts": [
+        {
+          "name": "pool",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenVault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "solVault",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userTokenAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "lamportAmount",
+          "type": "u64"
+        },
+        {
+          "name": "minTokenOut",
           "type": "u64"
         }
       ]
@@ -164,14 +317,50 @@
             "type": "publicKey"
           },
           {
+            "name": "lpMint",
+            "type": "publicKey"
+          },
+          {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "feeNumerator",
+            "type": "u64"
+          },
+          {
+            "name": "feeDenominator",
+            "type": "u64"
           }
         ]
       }
     }
   ],
-  "metadata": {
-    "address": "5oMNX1WenL9DKfb5Yyf28c7Tbns2nqmMnv1FoTMJwuju"
-  }
+  "errors": [
+    {
+      "code": 6000,
+      "name": "SlippageExceeded",
+      "msg": "Slippage tolerance exceeded"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidVault",
+      "msg": "Invalid vault account"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidMint",
+      "msg": "Invalid mint account"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidOwner",
+      "msg": "Invalid owner"
+    },
+    {
+      "code": 6004,
+      "name": "InsufficientLiquidity",
+      "msg": "Insufficient liquidity"
+    }
+  ]
 }

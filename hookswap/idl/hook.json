@@ -4,11 +4,17 @@
   "instructions": [
     {
       "name": "validateTransfer",
+      "docs": [
+        "Transfer hook validation function called during token transfers"
+      ],
       "accounts": [
         {
           "name": "kyc",
           "isMut": false,
-          "isSigner": false
+          "isSigner": false,
+          "docs": [
+            "KYC account that stores approval status"
+          ]
         },
         {
           "name": "owner",
@@ -17,6 +23,149 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "createKyc",
+      "docs": [
+        "Create a new KYC status record for a user"
+      ],
+      "accounts": [
+        {
+          "name": "kyc",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "User who will be KYC approved"
+          ]
+        },
+        {
+          "name": "settings",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "revokeKyc",
+      "docs": [
+        "Revoke KYC status for a user"
+      ],
+      "accounts": [
+        {
+          "name": "kyc",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "User whose KYC will be revoked"
+          ]
+        },
+        {
+          "name": "settings",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "updateAuthority",
+      "docs": [
+        "Update program authority"
+      ],
+      "accounts": [
+        {
+          "name": "settings",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "newAuthority",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize",
+      "docs": [
+        "Initialize settings (create settings PDA)"
+      ],
+      "accounts": [
+        {
+          "name": "settings",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "KycData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "status",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProgramSettings",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "publicKey"
+          }
+        ]
+      }
     }
   ],
   "errors": [
@@ -24,9 +173,11 @@
       "code": 6000,
       "name": "KycFailed",
       "msg": "KYC validation failed!"
+    },
+    {
+      "code": 6001,
+      "name": "Unauthorized",
+      "msg": "Unauthorized operation"
     }
-  ],
-  "metadata": {
-    "address": "FYUyJbrXRQJpGnjfZTFCdEUvFnknkTGbrdHhRUQkezib"
-  }
+  ]
 }
