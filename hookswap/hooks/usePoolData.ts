@@ -38,7 +38,7 @@ export function usePoolData(tokenMint?: PublicKey) {
       
       // Fetch the pool account data from the blockchain
       console.log(`Fetching pool account for mint ${tokenMint.toString()}`);
-      const poolAccount = await ammProgram.account.pool.fetch(poolPda);
+      const poolAccount = await (ammProgram.account as any).pool.fetch(poolPda);
       console.log("Pool account data:", poolAccount);
       
       // Get vault addresses from pool account

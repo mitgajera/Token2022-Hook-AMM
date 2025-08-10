@@ -82,7 +82,7 @@ export function getLpMintPda(pool: PublicKey): [PublicKey, number] {
   );
 }
 
-export class AnchorWallet implements Wallet {
+export class AnchorWallet {
   constructor(private readonly walletContext: WalletContextState) {
     if (!walletContext.publicKey) {
       throw new Error('Wallet not connected');
@@ -90,15 +90,15 @@ export class AnchorWallet implements Wallet {
   }
 
   get publicKey(): PublicKey {
-    return this.walletContext.publicKey;
+    return this.walletContext.publicKey!;
   }
 
   async signTransaction(transaction: any): Promise<any> {
-    return this.walletContext.signTransaction(transaction);
+    return this.walletContext.signTransaction!(transaction);
   }
 
   async signAllTransactions(transactions: any[]): Promise<any[]> {
-    return this.walletContext.signAllTransactions(transactions);
+    return this.walletContext.signAllTransactions!(transactions);
   }
 }
 
@@ -110,11 +110,11 @@ export function getAnchorProvider(
     return null;
   }
 
-  const anchorWallet: Wallet = {
+  const anchorWallet = {
     publicKey: wallet.publicKey,
     signTransaction: wallet.signTransaction,
     signAllTransactions: wallet.signAllTransactions,
-  };
+  } as any;
 
   return new AnchorProvider(connection, anchorWallet, {
     commitment: 'confirmed',
@@ -125,13 +125,13 @@ export function getAnchorProvider(
 export async function getAmmProgram(
   provider: AnchorProvider
 ): Promise<Program<AmmProgram>> {
-  return new Program(ammIdl, AMM_PROGRAM_ID, provider) as Program<AmmProgram>;
+  return new (Program as any)(ammIdl, AMM_PROGRAM_ID, provider) as Program<AmmProgram>;
 }
 
 export async function getHookProgram(
   provider: AnchorProvider
 ): Promise<Program<HookProgram>> {
-  return new Program(hookIdl, HOOK_PROGRAM_ID, provider) as Program<HookProgram>;
+  return new (Program as any)(hookIdl, HOOK_PROGRAM_ID, provider) as Program<HookProgram>;
 }
 
 export class PoolStateClass implements PoolState {

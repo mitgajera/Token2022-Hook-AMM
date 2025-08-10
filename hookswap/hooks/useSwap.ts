@@ -217,7 +217,7 @@ export function useSwap() {
       });
       
       // Call the swapTokenForSol method from your Rust program
-      const tx = await ammProgram.methods
+      const tx = await (ammProgram.methods as any)
         .swapTokenForSol(tokenAmount)
         .accounts({
           pool: poolPda,

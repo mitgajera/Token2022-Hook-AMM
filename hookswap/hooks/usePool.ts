@@ -52,7 +52,12 @@ export function usePool() {
     
     const fetchLpBalance = async () => {
       try {
-        const [lpMint] = getLpMintPda(poolState.tokenAMint, poolState.tokenBMint);
+        if (!poolState.tokenAMint || !poolState.tokenBMint) {
+          setUserLpBalance('0');
+          return;
+        }
+        const [poolPda] = getPoolPda(poolState.tokenAMint, poolState.tokenBMint);
+        const [lpMint] = getLpMintPda(poolPda);
         const userLpAccount = await getAssociatedTokenAddress(lpMint, publicKey);
         
         // Check if account exists
@@ -64,7 +69,7 @@ export function usePool() {
         
         // Parse token account data
         const accountData = await connection.getTokenAccountBalance(userLpAccount);
-        setUserLpBalance(accountData.value.uiAmount.toString());
+        setUserLpBalance(accountData.value.uiAmount?.toString() || '0');
       } catch (err) {
         console.error('Error fetching LP balance:', err);
         setUserLpBalance('0');
@@ -107,7 +112,7 @@ export function usePool() {
       const tokenBAmount = BigInt(Math.floor(amountB * Math.pow(10, 6))); // Assuming 6 decimals for USDC
       
       // Create add liquidity transaction
-      const tx = await ammProgram.methods
+      const tx = await (ammProgram.methods as any)
         .addLiquidity({
           tokenAAmount,
           tokenBAmount,
@@ -172,7 +177,7 @@ export function usePool() {
       const lpTokensToBurn = BigInt(Math.floor(parseFloat(userLpBalance) * (percentage / 100) * Math.pow(10, 9)));
       
       // Create remove liquidity transaction
-      const tx = await ammProgram.methods
+      const tx = await (ammProgram.methods as any)
         .removeLiquidity({
           lpTokenAmount: lpTokensToBurn,
           minimumTokenAAmount: BigInt(0), // You might want to calculate this based on slippage
