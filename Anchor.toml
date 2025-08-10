@@ -9,12 +9,12 @@ cluster = "devnet"
 wallet = "C:/Users/gajer/.config/solana/id.json"
 
 [programs.devnet]
-amm = "7448D3Cy2jdvFPJrUNhVY4uaAvf83EffSNa6Jbu4BqHG"
-hook = "DTmjxgRSQNJLwBa4wxkwffXqW4TKPfzq9r9MMToXx9bX"
+amm = "3KeeJh4v2qeSPMWekPwskMPkYVVBhqinixmEnWVdZ9mU"
+hook = "9JJWgpjTmmXYNhsUgqanojpfGdL5ovQTPaF53Gb8qX4J"
 
 [programs.localnet]
-amm = "7448D3Cy2jdvFPJrUNhVY4uaAvf83EffSNa6Jbu4BqHG"
-hook = "DTmjxgRSQNJLwBa4wxkwffXqW4TKPfzq9r9MMToXx9bX"
+amm = "3KeeJh4v2qeSPMWekPwskMPkYVVBhqinixmEnWVdZ9mU"
+hook = "9JJWgpjTmmXYNhsUgqanojpfGdL5ovQTPaF53Gb8qX4J"
 
 [registry]
 url = "https://api.apr.dev"

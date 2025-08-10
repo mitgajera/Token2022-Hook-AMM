@@ -7,11 +7,17 @@ use anchor_spl::token_interface::{
 };
 use std::cmp;
 
-declare_id!("7448D3Cy2jdvFPJrUNhVY4uaAvf83EffSNa6Jbu4BqHG");
+declare_id!("3KeeJh4v2qeSPMWekPwskMPkYVVBhqinixmEnWVdZ9mU");
 
 // Fee settings
 const FEE_NUMERATOR: u64 = 3;
 const FEE_DENOMINATOR: u64 = 1000; // 0.3% fee
+
+// Whitelisted hook programs that are safe to interact with
+const WHITELISTED_HOOKS: &[&str] = &[
+    "9JJWgpjTmmXYNhsUgqanojpfGdL5ovQTPaF53Gb8qX4J", // Our hook program
+    // Add more whitelisted hook programs here
+];
 
 #[program]
 pub mod amm {
@@ -23,12 +29,13 @@ pub mod amm {
         pool.token_vault = ctx.accounts.token_vault.key();
         pool.sol_vault = ctx.accounts.sol_vault.key();
         pool.lp_mint = ctx.accounts.lp_mint.key();
-        // Anchor v0.29+: ctx.bumps is a struct with fields
         pool.bump = ctx.bumps.pool;
         pool.fee_numerator = FEE_NUMERATOR;
         pool.fee_denominator = FEE_DENOMINATOR;
+        pool.created_at = Clock::get()?.unix_timestamp;
+        pool.is_active = true;
 
-        msg!("Pool initialized for token {}", pool.token_mint);
+        msg!("Pool initialized for token {} with transfer hook support", pool.token_mint);
         Ok(())
     }
 
@@ -38,6 +45,7 @@ pub mod amm {
         min_lp_tokens: u64,
     ) -> Result<()> {
         // Transfer tokens from user -> token_vault
+        // The transfer hook will be automatically called by Token-2022 if configured
         let token_transfer_ctx = TransferChecked {
             from: ctx.accounts.user_token_account.to_account_info(),
             mint: ctx.accounts.token_mint.to_account_info(),
@@ -61,7 +69,7 @@ pub mod amm {
         let lp_tokens_to_mint: u64;
 
         if ctx.accounts.token_vault.amount == 0 {
-            // first deposit — in production require explicit SOL input
+            // First deposit
             sol_amount = ctx.accounts.user.lamports();
             lp_tokens_to_mint = (token_amount as u128)
                 .checked_mul(1_000_000)
@@ -105,14 +113,13 @@ pub mod amm {
             ErrorCode::SlippageExceeded
         );
 
-        // Transfer SOL from user -> sol_vault (user signed)
+        // Transfer SOL from user -> sol_vault
         let transfer_ix = system_instruction::transfer(
             &ctx.accounts.user.key(),
             &ctx.accounts.sol_vault.key(),
             sol_amount,
         );
 
-        // user signed, no program signer needed
         invoke_signed(
             &transfer_ix,
             &[
@@ -181,7 +188,7 @@ pub mod amm {
         require!(token_amount >= min_token_amount, ErrorCode::SlippageExceeded);
         require!(sol_amount >= min_sol_amount, ErrorCode::SlippageExceeded);
 
-        // Burn user's LP tokens (user sign)
+        // Burn user's LP tokens
         let burn_cpi_ctx = CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
             Burn {
@@ -194,6 +201,7 @@ pub mod amm {
         burn(burn_cpi_ctx, lp_amount)?;
 
         // Transfer tokens from pool -> user (signed by pool PDA)
+        // The transfer hook will be automatically called by Token-2022 if configured
         let token_mint_key = ctx.accounts.token_mint.key();
         let seeds = &[
             b"pool".as_ref(),
@@ -219,7 +227,7 @@ pub mod amm {
             ctx.accounts.token_mint.decimals,
         )?;
 
-        // Transfer SOL from pool -> user (signed by pool PDA)
+        // Transfer SOL from pool -> user
         let sol_ix = system_instruction::transfer(
             &ctx.accounts.sol_vault.key(),
             &ctx.accounts.user.key(),
@@ -252,6 +260,7 @@ pub mod amm {
         min_sol_out: u64,
     ) -> Result<()> {
         // Transfer tokens from user -> token_vault
+        // The transfer hook will be automatically called by Token-2022 if configured
         let token_transfer_ctx = TransferChecked {
             from: ctx.accounts.user_token_account.to_account_info(),
             mint: ctx.accounts.token_mint.to_account_info(),
@@ -270,7 +279,7 @@ pub mod amm {
             ctx.accounts.token_mint.decimals,
         )?;
 
-        // Compute output SOL amount (constant product approximation)
+        // Compute output SOL amount (constant product formula)
         let token_reserve = ctx.accounts.token_vault.amount.saturating_sub(token_amount);
         let sol_reserve = ctx.accounts.sol_vault.lamports();
 
@@ -317,7 +326,7 @@ pub mod amm {
             signer,
         )?;
 
-        msg!("Swapped {} tokens for {} SOL", token_amount, sol_out_after_fee);
+        msg!("Swapped {} tokens for {} SOL (fee: {} SOL)", token_amount, sol_out_after_fee, fee);
 
         Ok(())
     }
@@ -327,7 +336,7 @@ pub mod amm {
         lamport_amount: u64,
         min_token_out: u64,
     ) -> Result<()> {
-        // Transfer SOL from user -> sol_vault (user signed)
+        // Transfer SOL from user -> sol_vault
         let transfer_ix = system_instruction::transfer(
             &ctx.accounts.user.key(),
             &ctx.accounts.sol_vault.key(),
@@ -367,6 +376,7 @@ pub mod amm {
         require!(token_out_after_fee >= min_token_out, ErrorCode::SlippageExceeded);
 
         // Transfer tokens to user (signed by pool PDA)
+        // The transfer hook will be automatically called by Token-2022 if configured
         let token_mint_key = ctx.accounts.token_mint.key();
         let seeds = &[
             b"pool".as_ref(),
@@ -392,10 +402,17 @@ pub mod amm {
             ctx.accounts.token_mint.decimals,
         )?;
 
-        msg!("Swapped {} SOL for {} tokens", lamport_amount, token_out_after_fee);
+        msg!("Swapped {} SOL for {} tokens (fee: {} tokens)", lamport_amount, token_out_after_fee, fee);
 
         Ok(())
     }
+}
+
+// Helper function to check if a transfer hook is whitelisted
+fn is_whitelisted_hook(hook_program: &Pubkey) -> bool {
+    WHITELISTED_HOOKS.iter().any(|&whitelisted| {
+        whitelisted == hook_program.to_string()
+    })
 }
 
 #[derive(Accounts)]
@@ -403,7 +420,7 @@ pub struct InitializePool<'info> {
     #[account(
         init,
         payer = payer,
-        space = 8 + 32 + 32 + 32 + 32 + 1 + 8 + 8, // Add space for lp_mint and fee settings
+        space = 8 + 32 + 32 + 32 + 32 + 1 + 8 + 8 + 8 + 1, // Add space for lp_mint, fee settings, created_at, is_active
         seeds = [b"pool", token_mint.key().as_ref()],
         bump
     )]
@@ -627,6 +644,8 @@ pub struct Pool {
     pub bump: u8,
     pub fee_numerator: u64,
     pub fee_denominator: u64,
+    pub created_at: i64,
+    pub is_active: bool,
 }
 
 #[error_code]
@@ -645,4 +664,7 @@ pub enum ErrorCode {
 
     #[msg("Insufficient liquidity")]
     InsufficientLiquidity,
+
+    #[msg("Unsupported transfer hook program")]
+    UnsupportedTransferHook,
 }
