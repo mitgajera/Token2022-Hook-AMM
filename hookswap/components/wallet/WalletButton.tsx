@@ -5,10 +5,10 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { toast } from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
-import { Loader2, Wallet } from 'lucide-react';
+import { Loader2, Wallet, RefreshCw } from 'lucide-react';
 
 export function WalletButton() {
-  const { publicKey, disconnect, connected, connecting, disconnecting } = useWallet();
+  const { publicKey, disconnect, connected, connecting, disconnecting, wallet, select } = useWallet();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   
@@ -39,10 +39,14 @@ export function WalletButton() {
     
     try {
       // Disconnect current wallet
-      await disconnect();
+      if (wallet && wallet.adapter) {
+        await wallet.adapter.disconnect();
+      } else {
+        await disconnect();
+      }
       
       // Wait a bit for disconnect to complete
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Trigger the built-in wallet modal
       const walletButton = document.querySelector('.wallet-adapter-button-trigger') as HTMLElement;
@@ -61,12 +65,41 @@ export function WalletButton() {
   
   const handleDisconnect = async () => {
     try {
-      await disconnect();
       setIsOpen(false);
+      
+      // Try to disconnect using the wallet adapter first
+      if (wallet && wallet.adapter) {
+        await wallet.adapter.disconnect();
+      } else {
+        // Fallback to the hook's disconnect function
+        await disconnect();
+      }
+      
       toast.success('Wallet disconnected successfully');
     } catch (error) {
       console.error('Error disconnecting wallet:', error);
       toast.error('Failed to disconnect wallet');
+    }
+  };
+
+  const handleRefreshWallet = async () => {
+    try {
+      setIsOpen(false);
+      
+      // Force refresh by disconnecting and reconnecting
+      if (wallet && wallet.adapter) {
+        await wallet.adapter.disconnect();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        // The wallet should auto-reconnect
+      } else {
+        await disconnect();
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      toast.success('Wallet refreshed');
+    } catch (error) {
+      console.error('Error refreshing wallet:', error);
+      toast.error('Failed to refresh wallet');
     }
   };
 
@@ -150,6 +183,13 @@ export function WalletButton() {
                 className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-white/10 rounded-md transition-colors"
               >
                 Copy address
+              </button>
+              <button
+                onClick={handleRefreshWallet}
+                className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-white/10 rounded-md transition-colors"
+              >
+                <RefreshCw className="w-4 h-4 inline mr-2" />
+                Refresh wallet
               </button>
               <button
                 onClick={handleChangeWallet}

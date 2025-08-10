@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { Token } from '@/types/token';
 import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 
 // Expanded token registry with many common SPL tokens
 const KNOWN_TOKENS: Record<string, { symbol: string, name: string }> = {
@@ -26,7 +26,7 @@ export function useTokens() {
   const [loading, setLoading] = useState(false);
   const [tokenMetadata, setTokenMetadata] = useState<Record<string, { symbol: string, name: string }>>({});
 
-  // Fetch token list from token registry only once
+  // Fetch token list from token registry and local storage
   useEffect(() => {
     async function fetchTokenList() {
       try {
@@ -41,10 +41,38 @@ export function useTokens() {
           };
         });
         
+        // Add locally stored hooked tokens metadata
+        try {
+          const hookedTokens = JSON.parse(localStorage.getItem('hookedTokens') || '[]');
+          hookedTokens.forEach((token: any) => {
+            metadata[token.mint] = {
+              symbol: token.symbol,
+              name: token.name
+            };
+          });
+        } catch (error) {
+          console.error('Error parsing hooked tokens from localStorage:', error);
+        }
+        
         setTokenMetadata({...KNOWN_TOKENS, ...metadata});
       } catch (error) {
         console.error('Failed to fetch token list:', error);
-        setTokenMetadata(KNOWN_TOKENS);
+        
+        // Fallback to known tokens + local hooked tokens
+        try {
+          const hookedTokens = JSON.parse(localStorage.getItem('hookedTokens') || '[]');
+          const localMetadata: Record<string, { symbol: string, name: string }> = {};
+          hookedTokens.forEach((token: any) => {
+            localMetadata[token.mint] = {
+              symbol: token.symbol,
+              name: token.name
+            };
+          });
+          setTokenMetadata({...KNOWN_TOKENS, ...localMetadata});
+        } catch (localError) {
+          console.error('Error parsing hooked tokens from localStorage:', localError);
+          setTokenMetadata(KNOWN_TOKENS);
+        }
       }
     }
     
@@ -75,14 +103,16 @@ export function useTokens() {
         usdValue: '0.00'
       };
       
-      // 2. Fetch SPL token accounts
-      const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
-        publicKey,
-        { programId: TOKEN_PROGRAM_ID }
-      );
+      // 2. Fetch SPL token accounts (both Token and Token-2022)
+      const [tokenAccounts, token2022Accounts] = await Promise.all([
+        connection.getParsedTokenAccountsByOwner(publicKey, { programId: TOKEN_PROGRAM_ID }),
+        connection.getParsedTokenAccountsByOwner(publicKey, { programId: TOKEN_2022_PROGRAM_ID })
+      ]);
       
-      // 3. Map to Token objects
-      const tokenList = tokenAccounts.value
+      // 3. Combine and map to Token objects
+      const allTokenAccounts = [...tokenAccounts.value, ...token2022Accounts.value];
+      
+      const tokenList = allTokenAccounts
         .filter(item => {
           const data = item.account.data.parsed.info;
           return parseFloat(data.tokenAmount.uiAmount) > 0;
@@ -133,10 +163,10 @@ export function useTokens() {
         };
       }
       
-      // Return structured metadata
-      return {
-        symbol: tokenMetadata.data.symbol || mintAddress.substring(0, 4),
-        name: tokenMetadata.data.name || mintAddress
+      // For now, return known tokens or fallback since we can't easily parse Metaplex metadata
+      return KNOWN_TOKENS[mintAddress] || {
+        symbol: mintAddress.substring(0, 4),
+        name: `${mintAddress.substring(0, 4)}...${mintAddress.substring(mintAddress.length - 4)}`
       };
     } catch (error) {
       console.error("Error fetching token metadata:", error);
