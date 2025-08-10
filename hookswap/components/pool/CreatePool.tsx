@@ -117,7 +117,7 @@ export function CreatePool() {
       const solAmountLamports = Math.floor(solAmountNum * LAMPORTS_PER_SOL);
 
       // Call AMM program to initialize pool
-      const initializePoolTx = await ammProgram.methods
+      const initializePoolTx = await (ammProgram.methods as any)
         .initializePool()
         .accounts({
           pool: poolPda,
@@ -138,7 +138,7 @@ export function CreatePool() {
       await connection.confirmTransaction(signature, 'confirmed');
 
       // Add initial liquidity
-      const addLiquidityTx = await ammProgram.methods
+      const addLiquidityTx = await (ammProgram.methods as any)
         .addLiquidity(tokenAmountLamports, 0) // min_lp_tokens = 0 for first deposit
         .accounts({
           pool: poolPda,
