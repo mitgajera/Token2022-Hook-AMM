@@ -5,4 +5,5 @@ export interface Token {
   decimals: number;
   balance: string;
   usdValue: string;
+  logoURI?: string;
 }

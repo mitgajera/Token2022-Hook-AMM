@@ -331,6 +331,14 @@
           {
             "name": "feeDenominator",
             "type": "u64"
+          },
+          {
+            "name": "createdAt",
+            "type": "i64"
+          },
+          {
+            "name": "isActive",
+            "type": "bool"
           }
         ]
       }
@@ -361,6 +369,11 @@
       "code": 6004,
       "name": "InsufficientLiquidity",
       "msg": "Insufficient liquidity"
+    },
+    {
+      "code": 6005,
+      "name": "UnsupportedTransferHook",
+      "msg": "Unsupported transfer hook program"
     }
   ]
 }

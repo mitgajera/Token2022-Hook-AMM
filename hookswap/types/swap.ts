@@ -7,3 +7,7 @@ export interface SwapStatsType {
   priceImpact: number;
   minimumReceived: string;
 }
+
+export interface SwapStatsProps {
+  stats: SwapStatsType;
+}

@@ -4,9 +4,6 @@
   "instructions": [
     {
       "name": "validateTransfer",
-      "docs": [
-        "Transfer hook validation function called during token transfers"
-      ],
       "accounts": [
         {
           "name": "kyc",
@@ -19,16 +16,48 @@
         {
           "name": "owner",
           "isMut": false,
-          "isSigner": true
+          "isSigner": true,
+          "docs": [
+            "The owner of the tokens being transferred"
+          ]
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The mint being transferred"
+          ]
+        },
+        {
+          "name": "source",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Source token account"
+          ]
+        },
+        {
+          "name": "destination",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Destination token account"
+          ]
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Token program"
+          ]
         }
       ],
       "args": []
     },
     {
       "name": "createKyc",
-      "docs": [
-        "Create a new KYC status record for a user"
-      ],
       "accounts": [
         {
           "name": "kyc",
@@ -63,9 +92,6 @@
     },
     {
       "name": "revokeKyc",
-      "docs": [
-        "Revoke KYC status for a user"
-      ],
       "accounts": [
         {
           "name": "kyc",
@@ -95,9 +121,6 @@
     },
     {
       "name": "updateAuthority",
-      "docs": [
-        "Update program authority"
-      ],
       "accounts": [
         {
           "name": "settings",
@@ -119,9 +142,6 @@
     },
     {
       "name": "initialize",
-      "docs": [
-        "Initialize settings (create settings PDA)"
-      ],
       "accounts": [
         {
           "name": "settings",
@@ -140,6 +160,85 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "setTransferLimits",
+      "accounts": [
+        {
+          "name": "mintLimits",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "settings",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "limits",
+          "type": {
+            "defined": "TransferLimits"
+          }
+        }
+      ]
+    },
+    {
+      "name": "checkTransferLimits",
+      "accounts": [
+        {
+          "name": "mintLimits",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "userUsage",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "user",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -149,8 +248,22 @@
         "kind": "struct",
         "fields": [
           {
+            "name": "user",
+            "type": "publicKey"
+          },
+          {
             "name": "status",
             "type": "u8"
+          },
+          {
+            "name": "createdAt",
+            "type": "i64"
+          },
+          {
+            "name": "revokedAt",
+            "type": {
+              "option": "i64"
+            }
           }
         ]
       }
@@ -163,6 +276,88 @@
           {
             "name": "authority",
             "type": "publicKey"
+          },
+          {
+            "name": "createdAt",
+            "type": "i64"
+          },
+          {
+            "name": "isActive",
+            "type": "bool"
+          },
+          {
+            "name": "updatedAt",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MintLimits",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "publicKey"
+          },
+          {
+            "name": "dailyLimit",
+            "type": "u64"
+          },
+          {
+            "name": "transactionLimit",
+            "type": "u64"
+          },
+          {
+            "name": "isActive",
+            "type": "bool"
+          },
+          {
+            "name": "updatedAt",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserUsage",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "publicKey"
+          },
+          {
+            "name": "dailyUsed",
+            "type": "u64"
+          },
+          {
+            "name": "lastResetDay",
+            "type": "i64"
+          },
+          {
+            "name": "lastTransaction",
+            "type": "i64"
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "TransferLimits",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "dailyLimit",
+            "type": "u64"
+          },
+          {
+            "name": "transactionLimit",
+            "type": "u64"
           }
         ]
       }
@@ -178,6 +373,26 @@
       "code": 6001,
       "name": "Unauthorized",
       "msg": "Unauthorized operation"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidKycAccount",
+      "msg": "Invalid KYC account"
+    },
+    {
+      "code": 6003,
+      "name": "TransferLimitExceeded",
+      "msg": "Transfer limit exceeded"
+    },
+    {
+      "code": 6004,
+      "name": "DailyLimitExceeded",
+      "msg": "Daily limit exceeded"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidMintLimits",
+      "msg": "Invalid mint limits"
     }
   ]
 }
