@@ -248,24 +248,4 @@ anchor deploy --provider.cluster mainnet-beta
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [Solana Labs](https://solana.com/) for the Solana blockchain
-- [Anchor](https://book.anchor-lang.com/) for the development framework
-- [SPL Token-2022](https://spl.solana.com/token-2022) for the token standard
-- [Next.js](https://nextjs.org/) for the frontend framework
-
-## 📞 Support
-
-- **Documentation**: [Project Wiki](link-to-wiki)
-- **Issues**: [GitHub Issues](link-to-issues)
-- **Discord**: [Community Server](link-to-discord)
-- **Email**: support@hookswap.com
-
----
-
 **Built with ❤️ for the Solana ecosystem**
