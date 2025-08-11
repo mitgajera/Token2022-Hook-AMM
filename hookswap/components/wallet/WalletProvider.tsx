@@ -13,11 +13,15 @@ import { clusterApiUrl } from '@solana/web3.js';
 require('@solana/wallet-adapter-react-ui/styles.css');
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'.
+  // Force Devnet
   const network = WalletAdapterNetwork.Devnet;
 
-  // You can also provide a custom RPC endpoint.
-  const endpoint = useMemo(() => clusterApiUrl(network), [network]);
+  // Lock endpoint to Devnet unless an explicit Devnet RPC is provided
+  const endpoint = useMemo(() => {
+    const custom = process.env.NEXT_PUBLIC_RPC_URL;
+    if (custom && /devnet/i.test(custom)) return custom;
+    return clusterApiUrl(WalletAdapterNetwork.Devnet);
+  }, []);
 
   const wallets = useMemo(
     () => [
@@ -28,18 +32,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     [network]
   );
 
+  const autoConnect =
+    String(process.env.NEXT_PUBLIC_WALLET_AUTOCONNECT || '').toLowerCase() === 'true';
+
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <SolanaWalletProvider 
-        wallets={wallets} 
-        autoConnect={false}
+      <SolanaWalletProvider
+        wallets={wallets}
+        autoConnect={autoConnect}
         onError={(error) => {
           console.error('Wallet error:', error);
         }}
       >
-        <WalletModalProvider>
-          {children}
-        </WalletModalProvider>
+        <WalletModalProvider>{children}</WalletModalProvider>
       </SolanaWalletProvider>
     </ConnectionProvider>
   );

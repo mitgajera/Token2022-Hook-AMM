@@ -18,7 +18,7 @@ import { toast } from 'react-hot-toast';
 import { useAnchorPrograms } from '@/hooks/useAnchorPrograms';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { useTokens } from '@/hooks/useTokens';
-import { AMM_PROGRAM_ID } from '@/lib/anchor';
+import { AMM_PROGRAM_ID, getPoolPda, getVaultPda, getLpMintPda } from '@/lib/anchor';
 
 export function CreatePool() {
   const { connection } = useConnection();
@@ -64,27 +64,14 @@ export function CreatePool() {
       const solAmountNum = parseFloat(solAmount);
 
       // Get pool PDA
-      const [poolPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('pool'), tokenMint.toBuffer()],
-        AMM_PROGRAM_ID
-      );
+      const [poolPda] = getPoolPda(tokenMint);
 
       // Get vault PDAs
-      const [tokenVaultPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('vault'), poolPda.toBuffer(), tokenMint.toBuffer()],
-        AMM_PROGRAM_ID
-      );
-
-      const [solVaultPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('vault'), poolPda.toBuffer(), Buffer.from('sol')],
-        AMM_PROGRAM_ID
-      );
+      const [tokenVaultPda] = getVaultPda(poolPda, tokenMint);
+      const [solVaultPda] = getVaultPda(poolPda, new PublicKey('So11111111111111111111111111111111111111112'));
 
       // Get LP mint PDA
-      const [lpMintPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('lp_mint'), poolPda.toBuffer()],
-        AMM_PROGRAM_ID
-      );
+      const [lpMintPda] = getLpMintPda(poolPda);
 
       // Get user token account
       const userTokenAccount = await getAssociatedTokenAddress(
@@ -211,7 +198,7 @@ export function CreatePool() {
               <SelectContent>
                 {tokensLoading ? (
                   <SelectItem value="loading" disabled>
-                    Loading tokens...
+                    Loading tokens... {tokens.length} found
                   </SelectItem>
                 ) : tokens.length === 0 ? (
                   <SelectItem value="none" disabled>

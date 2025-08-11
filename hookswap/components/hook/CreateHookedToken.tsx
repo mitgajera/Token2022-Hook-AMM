@@ -1,8 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { PublicKey, Keypair, SystemProgram, Transaction } from '@solana/web3.js';
-import { 
+import {
+  PublicKey,
+  Keypair,
+  SystemProgram,
+  Transaction,
+} from '@solana/web3.js';
+import {
   createInitializeMintInstruction,
   createInitializeTransferHookInstruction,
   TOKEN_2022_PROGRAM_ID,
@@ -11,6 +16,7 @@ import {
   createMintToInstruction,
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,72 +26,66 @@ import { Zap, Loader2, CheckCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useAnchorPrograms } from '@/hooks/useAnchorPrograms';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { HOOK_PROGRAM_ID } from '@/lib/anchor';
 
 export function CreateHookedToken() {
   const { connection } = useConnection();
-  const { publicKey, sendTransaction } = useWallet();
-  const { hookProgram, connected } = useAnchorPrograms();
-  
+  const { publicKey, sendTransaction, connected } = useWallet();
+  const { hookProgram } = useAnchorPrograms();
+
   const [tokenName, setTokenName] = useState('');
   const [tokenSymbol, setTokenSymbol] = useState('');
   const [decimals, setDecimals] = useState('9');
   const [initialSupply, setInitialSupply] = useState('1000000');
   const [isCreating, setIsCreating] = useState(false);
   const [createdToken, setCreatedToken] = useState<PublicKey | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string>('');
+  const [debugInfo, setDebugInfo] = useState('');
 
-  // Debug function to show current state
   const showDebugInfo = () => {
     const info = {
       connected,
-      publicKey: publicKey?.toString(),
+      publicKey: publicKey?.toString() || 'none',
       hookProgram: !!hookProgram,
-      connection: !!connection,
-      network: connection?.rpcEndpoint,
-      localStorage: localStorage.getItem('hookedTokens')
+      connectionEndpoint: (connection as any)?.rpcEndpoint || 'none',
     };
+    console.log('Debug info:', info);
     setDebugInfo(JSON.stringify(info, null, 2));
   };
 
-  const createHookedToken = async () => {
-    if (!connected || !publicKey || !hookProgram) {
+  const createToken = async () => {
+    if (!publicKey || !connected || !connection) {
       toast.error('Please connect your wallet first');
       return;
     }
 
-    if (!tokenName || !tokenSymbol) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    if (tokenName.length < 1 || tokenName.length > 32) {
-      toast.error('Token name must be between 1 and 32 characters');
-      return;
-    }
-
-    if (tokenSymbol.length < 1 || tokenSymbol.length > 10) {
-      toast.error('Token symbol must be between 1 and 10 characters');
-      return;
-    }
-
-    if (parseFloat(initialSupply) <= 0) {
-      toast.error('Initial supply must be greater than 0');
+    if (!tokenName || !tokenSymbol || !decimals || !initialSupply) {
+      toast.error('Please fill all token details');
       return;
     }
 
     setIsCreating(true);
-    const loadingToast = toast.loading('Creating hooked token...');
+    const loadingId = toast.loading('Creating hooked token...');
 
     try {
       // Generate new mint keypair
       const mintKeypair = Keypair.generate();
-      const decimalsNum = parseInt(decimals);
-      const supply = BigInt(parseInt(initialSupply) * Math.pow(10, decimalsNum));
+      const decimalsNum = parseInt(decimals, 10);
+      if (Number.isNaN(decimalsNum) || decimalsNum < 0 || decimalsNum > 9) {
+        throw new Error('Decimals must be an integer between 0 and 9');
+      }
+
+      // BigInt-safe supply calculation
+      let supply = BigInt(initialSupply);
+      for (let i = 0; i < decimalsNum; i++) {
+        supply = supply * BigInt(10);
+      }
 
       // Calculate space needed for mint with transfer hook extension
       const mintLen = getMintLen([ExtensionType.TransferHook]);
-      const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
+      const lamports = await connection.getMinimumBalanceForRentExemption(
+        mintLen
+      );
 
       console.log('Creating token with:', {
         mint: mintKeypair.publicKey.toString(),
@@ -93,133 +93,156 @@ export function CreateHookedToken() {
         symbol: tokenSymbol,
         decimals: decimalsNum,
         supply: supply.toString(),
+        mintLen,
         lamports,
-        mintLen
       });
 
-      // Create mint account instruction
-      const createAccountInstruction = SystemProgram.createAccount({
-        fromPubkey: publicKey,
-        newAccountPubkey: mintKeypair.publicKey,
-        space: mintLen,
-        lamports,
-        programId: TOKEN_2022_PROGRAM_ID,
-      });
+      // Build transaction
+      const tx = new Transaction();
 
-      // Initialize transfer hook extension
-      const initializeTransferHookInstruction = createInitializeTransferHookInstruction(
-        mintKeypair.publicKey,
-        publicKey, // authority
-        HOOK_PROGRAM_ID, // hook program
-        TOKEN_2022_PROGRAM_ID
+      // 1) Create mint account with enough space
+      tx.add(
+        SystemProgram.createAccount({
+          fromPubkey: publicKey,
+          newAccountPubkey: mintKeypair.publicKey,
+          space: mintLen,
+          lamports,
+          programId: TOKEN_2022_PROGRAM_ID,
+        })
       );
 
-      // Initialize mint instruction
-      const initializeMintInstruction = createInitializeMintInstruction(
-        mintKeypair.publicKey,
-        decimalsNum,
-        publicKey, // mint authority
-        publicKey, // freeze authority
-        TOKEN_2022_PROGRAM_ID
+      // 2) Initialize transfer hook extension FIRST (per Token-2022 spec)
+      tx.add(
+        createInitializeTransferHookInstruction(
+          mintKeypair.publicKey,
+          publicKey, // authority for extension (you can change if needed)
+          HOOK_PROGRAM_ID, // hook program to call on transfers
+          TOKEN_2022_PROGRAM_ID
+        )
       );
 
-      // Get associated token account for the user
+      // 3) Initialize the base mint AFTER extensions are initialized
+      tx.add(
+        createInitializeMintInstruction(
+          mintKeypair.publicKey,
+          decimalsNum,
+          publicKey, // mint authority
+          publicKey, // freeze authority
+          TOKEN_2022_PROGRAM_ID
+        )
+      );
+
+      // 4) Create associated token account for user (use TOKEN_2022 and associated token program ids)
       const userTokenAccount = await getAssociatedTokenAddress(
         mintKeypair.publicKey,
         publicKey,
         false,
-        TOKEN_2022_PROGRAM_ID
+        TOKEN_2022_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
       );
 
-      // Create associated token account instruction
-      const createAtaInstruction = createAssociatedTokenAccountInstruction(
-        publicKey,
-        userTokenAccount,
-        publicKey,
-        mintKeypair.publicKey,
-        TOKEN_2022_PROGRAM_ID
+      tx.add(
+        createAssociatedTokenAccountInstruction(
+          publicKey, // payer
+          userTokenAccount, // associated token account
+          publicKey, // owner
+          mintKeypair.publicKey, // mint
+          TOKEN_2022_PROGRAM_ID,
+          ASSOCIATED_TOKEN_PROGRAM_ID
+        )
       );
 
-      // Mint initial supply to user
-      const mintToInstruction = createMintToInstruction(
-        mintKeypair.publicKey,
-        userTokenAccount,
-        publicKey,
-        supply,
-        [],
-        TOKEN_2022_PROGRAM_ID
+      // 5) Mint initial supply to the user
+      tx.add(
+        createMintToInstruction(
+          mintKeypair.publicKey,
+          userTokenAccount,
+          publicKey, // mint authority
+          supply,
+          [], // multiSigners (none)
+          TOKEN_2022_PROGRAM_ID
+        )
       );
 
-      // Create and send transaction
-      const transaction = new Transaction().add(
-        createAccountInstruction,
-        initializeTransferHookInstruction,
-        initializeMintInstruction,
-        createAtaInstruction,
-        mintToInstruction
-      );
+      // Set fee payer & recent blockhash
+      tx.feePayer = publicKey;
+      const { blockhash, lastValidBlockHeight } =
+        await connection.getLatestBlockhash('finalized');
+      tx.recentBlockhash = blockhash;
 
-      // Get recent blockhash
-      const { blockhash } = await connection.getLatestBlockhash();
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = publicKey;
-
-      // Sign transaction
-      transaction.sign(mintKeypair);
-
-      console.log('Transaction prepared, sending...');
+      // Partial sign with the mint keypair (extra signer)
+      tx.partialSign(mintKeypair);
 
       // Send transaction
-      const signature = await sendTransaction(transaction, connection);
-      console.log('Transaction sent:', signature);
-      
-      await connection.confirmTransaction(signature, 'confirmed');
-      console.log('Transaction confirmed');
+      console.log('Sending transaction...');
+      // NOTE: some wallet adapters accept a signers option in sendTransaction; keep it for compatibility.
+      const signature = await sendTransaction(tx, connection, {
+        signers: [mintKeypair],
+        preflightCommitment: 'confirmed',
+      } as any);
 
-      // Store token metadata locally for display purposes
-      const tokenInfo = {
+      console.log('Transaction sent, signature:', signature);
+
+      // Confirm transaction using the same blockhash/lastValidBlockHeight
+      const confirmation = await connection.confirmTransaction(
+        {
+          signature,
+          blockhash,
+          lastValidBlockHeight,
+        },
+        'confirmed'
+      );
+
+      if (confirmation.value.err) {
+        throw new Error(
+          `Transaction confirmed but failed: ${JSON.stringify(
+            confirmation.value.err
+          )}`
+        );
+      }
+
+      console.log('Token created successfully:', mintKeypair.publicKey.toString());
+
+      // Save locally for convenience
+      const tokensString = localStorage.getItem('hookedTokens') || '[]';
+      const tokens = JSON.parse(tokensString);
+      tokens.push({
         mint: mintKeypair.publicKey.toString(),
         name: tokenName,
         symbol: tokenSymbol,
         decimals: decimalsNum,
-        supply: initialSupply,
-        timestamp: Date.now()
-      };
+        supply: supply.toString(),
+        createdAt: Date.now(),
+      });
+      localStorage.setItem('hookedTokens', JSON.stringify(tokens));
 
-      // Store in localStorage for the app to use
-      try {
-        const existingTokens = JSON.parse(localStorage.getItem('hookedTokens') || '[]');
-        existingTokens.push(tokenInfo);
-        localStorage.setItem('hookedTokens', JSON.stringify(existingTokens));
-        console.log('Token metadata stored locally');
-      } catch (error) {
-        console.error('Error storing token metadata:', error);
-      }
-
-      toast.success('Hooked token created successfully!', { id: loadingToast });
+      toast.success('Token created successfully!', { id: loadingId });
       setCreatedToken(mintKeypair.publicKey);
-      
-      // Reset form
-      setTokenName('');
-      setTokenSymbol('');
-      setDecimals('9');
-      setInitialSupply('1000000');
+    } catch (err: any) {
+      console.error('Error creating hooked token:', err);
 
-    } catch (error) {
-      console.error('Error creating hooked token:', error);
-      let errorMessage = 'Failed to create hooked token. Please try again.';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('insufficient funds')) {
-          errorMessage = 'Insufficient SOL balance. Please ensure you have enough SOL for transaction fees.';
-        } else if (error.message.includes('User rejected')) {
+      let errorMessage = 'Failed to create hooked token.';
+      if (err instanceof Error) {
+        const m = err.message || '';
+        if (m.includes('insufficient funds') || m.includes('lamports')) {
+          errorMessage =
+            'Insufficient SOL balance. Please ensure you have enough SOL for transaction fees.';
+        } else if (
+          m.includes('InvalidAccountData') ||
+          m.includes('AccountNotRentExempt')
+        ) {
+          errorMessage =
+            'Invalid account data or rent-exemption error. Check initialization order and mint account space.';
+        } else if (m.includes('User rejected') || m.includes('user rejected')) {
           errorMessage = 'Transaction was rejected by the user.';
-        } else if (error.message.includes('blockhash')) {
-          errorMessage = 'Network error. Please try again.';
+        } else {
+          errorMessage = `Error: ${m}`;
         }
+      } else if (typeof err === 'string') {
+        errorMessage = err;
       }
-      
-      toast.error(errorMessage, { id: loadingToast });
+
+      toast.error(errorMessage, { id: loadingId });
     } finally {
       setIsCreating(false);
     }
@@ -240,7 +263,17 @@ export function CreateHookedToken() {
       {!connected ? (
         <div className="text-center py-8">
           <p className="text-gray-400 mb-4">Connect your wallet to create hooked tokens</p>
-          <Button className="glass-button text-white">Connect Wallet</Button>
+          <div className="flex flex-col gap-3 items-center">
+            <WalletMultiButton className="glass-button text-white" />
+            <Button variant="outline" onClick={showDebugInfo} size="sm">
+              Debug Connection
+            </Button>
+            {debugInfo && (
+              <pre className="mt-4 p-2 bg-gray-800 text-xs text-gray-300 rounded overflow-auto max-h-40">
+                {debugInfo}
+              </pre>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -248,9 +281,9 @@ export function CreateHookedToken() {
             <Label htmlFor="tokenName" className="text-white">Token Name</Label>
             <Input
               id="tokenName"
+              placeholder="My Awesome Token"
               value={tokenName}
               onChange={(e) => setTokenName(e.target.value)}
-              placeholder="My Awesome Token"
               className="glass-input"
             />
           </div>
@@ -259,9 +292,9 @@ export function CreateHookedToken() {
             <Label htmlFor="tokenSymbol" className="text-white">Token Symbol</Label>
             <Input
               id="tokenSymbol"
+              placeholder="MAT"
               value={tokenSymbol}
               onChange={(e) => setTokenSymbol(e.target.value)}
-              placeholder="MAT"
               className="glass-input"
             />
           </div>
@@ -271,10 +304,10 @@ export function CreateHookedToken() {
             <Input
               id="decimals"
               type="number"
-              value={decimals}
-              onChange={(e) => setDecimals(e.target.value)}
               min="0"
               max="9"
+              value={decimals}
+              onChange={(e) => setDecimals(e.target.value)}
               className="glass-input"
             />
           </div>
@@ -284,16 +317,16 @@ export function CreateHookedToken() {
             <Input
               id="initialSupply"
               type="number"
+              min="1"
               value={initialSupply}
               onChange={(e) => setInitialSupply(e.target.value)}
-              min="1"
               className="glass-input"
             />
           </div>
 
           <Button
-            onClick={createHookedToken}
-            disabled={isCreating || !tokenName || !tokenSymbol}
+            onClick={createToken}
+            disabled={isCreating}
             className="w-full glass-button text-white"
           >
             {isCreating ? (
@@ -309,47 +342,17 @@ export function CreateHookedToken() {
             )}
           </Button>
 
-          {/* Debug Button */}
-          <Button
-            onClick={showDebugInfo}
-            variant="outline"
-            className="w-full text-gray-400 border-gray-600 hover:bg-gray-700"
-          >
-            Debug Info
-          </Button>
-
-          {debugInfo && (
-            <div className="mt-4 p-4 bg-gray-800/50 border border-gray-600 rounded-lg">
-              <h4 className="text-sm font-medium text-gray-300 mb-2">Debug Information:</h4>
-              <pre className="text-xs text-gray-400 overflow-auto max-h-32">
-                {debugInfo}
-              </pre>
-            </div>
-          )}
-
           {createdToken && (
             <div className="mt-4 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
               <div className="flex items-center space-x-2 text-green-400">
                 <CheckCircle className="w-5 h-5" />
                 <span className="font-medium">Token Created Successfully!</span>
               </div>
-              <p className="text-sm text-green-300 mt-2">
-                Mint Address: {createdToken.toString()}
-              </p>
-              <p className="text-xs text-green-400 mt-1">
-                This token now has transfer hooks enabled and can be used in the AMM.
+              <p className="text-sm text-green-300 mt-2 break-all">
+                Token Address: {createdToken.toString()}
               </p>
             </div>
           )}
-
-          <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-            <h3 className="font-medium text-blue-400 mb-2">What are Transfer Hooks?</h3>
-            <p className="text-sm text-blue-300">
-              Transfer hooks allow you to add custom logic to token transfers, such as KYC validation, 
-              transfer limits, or compliance checks. This makes your tokens programmable and compliant 
-              with regulatory requirements.
-            </p>
-          </div>
         </div>
       )}
     </Card>

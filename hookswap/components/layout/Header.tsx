@@ -2,6 +2,9 @@
 
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Waves } from 'lucide-react';
+import { WalletButton } from '@/components/wallet/WalletButton';
+
+
 
 export function Header() {
   return (

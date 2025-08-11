@@ -51,10 +51,25 @@
 @layer components {
   .glass-card {
     @apply backdrop-blur-md bg-white/5 border border-white/10 rounded-xl shadow-2xl;
+    background: rgba(15, 15, 24, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
   }
   
   .glass-button {
     @apply backdrop-blur-md bg-gradient-to-r from-purple-600/20 to-purple-500/20 border border-purple-400/20 rounded-lg hover:from-purple-600/30 hover:to-purple-500/30 hover:border-purple-400/40 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/20;
+    background: rgba(124, 58, 237, 0.7);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    transition: all 0.2s ease;
+  }
+  
+  .glass-button:hover {
+    background: rgba(124, 58, 237, 0.85);
+  }
+  
+  .glass-input {
+    @apply backdrop-blur-md bg-white/5 border border-white/10 rounded-lg focus:border-purple-400/50 focus:ring-2 focus:ring-purple-400/20 transition-all duration-300 text-white placeholder:text-gray-400;
   }
   
   .input-glass {
@@ -67,6 +82,55 @@
   
   .gradient-text {
     @apply bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent;
+  }
+  
+  /* Modern Bolt-style UI elements */
+  .token-selector-btn {
+    @apply h-12 px-4 rounded-xl border border-[#2d2d3d] transition-all duration-200;
+  }
+
+  /* Floating effect for cards */
+  .float-card {
+    animation: float 6s ease-in-out infinite;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Modern card styles */
+  .modern-card {
+    @apply backdrop-blur-md bg-[#16171d]/60 border border-[#2d2d3d] rounded-xl shadow-2xl;
+  }
+
+  /* Stylized buttons */
+  .primary-gradient-btn {
+    @apply bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white font-medium transition-all duration-200;
+  }
+
+  /* Dark mode inputs */
+  .dark-input {
+    @apply bg-[#1a1b23]/80 border border-[#2d2d3d] text-white placeholder:text-gray-500 focus:ring-purple-500/30 focus:border-purple-500/50 transition-all duration-200;
+  }
+
+  /* Smooth transition for dropdowns */
+  .dropdown-transition {
+    @apply transition-all duration-200 ease-in-out;
+  }
+
+  /* Token amount input styles */
+  .token-amount-input {
+    @apply bg-transparent border-none text-2xl font-medium text-white placeholder:text-gray-500 focus:outline-none focus:ring-0;
+  }
+
+  /* Animate backgrounds */
+  @keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .animated-gradient {
+    background: linear-gradient(45deg, #8b5cf6, #ec4899, #8b5cf6);
+    background-size: 200% 200%;
+    animation: gradient-shift 15s ease infinite;
   }
 }
 
